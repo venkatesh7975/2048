@@ -1,196 +1,219 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, Button } from "react-bootstrap";
+import { Card } from "react-bootstrap";
+import { Howl } from "howler";
 import "./GameBoard.css";
 
 const GRID_SIZE = 4;
 const CELL_COUNT = GRID_SIZE * GRID_SIZE;
 
+// Sound effects
+const moveSound = new Howl({
+  src: ["https://cdn.pixabay.com/audio/2022/03/15/audio_5b4cbac098.mp3"],
+  volume: 0.3,
+});
+
+const winSound = new Howl({
+  src: ["https://cdn.pixabay.com/audio/2022/11/24/audio_9f31f4cc3b.mp3"],
+  volume: 0.5,
+});
+
+const loseSound = new Howl({
+  src: ["https://cdn.pixabay.com/audio/2022/03/03/audio_e6f88985e3.mp3"],
+  volume: 0.5,
+});
+
+const backgroundMusic = new Howl({
+  src: ["https://cdn.pixabay.com/audio/2022/03/15/audio_f3c1fc13d2.mp3"],
+  loop: true,
+  volume: 0.2,
+});
+
 const GameBoard = ({ setScore }) => {
-  const [grid, setGrid] = useState(() => getInitialGrid());
+  const [grid, setGrid] = useState(getInitialGrid);
   const [gameOver, setGameOver] = useState(false);
   const [lastScore, setLastScore] = useState(0);
+  const [gameWon, setGameWon] = useState(false);
+
+  useEffect(() => {
+    backgroundMusic.play();
+    return () => backgroundMusic.stop();
+  }, []);
 
   useEffect(() => {
     if (lastScore > 0) {
-      setScore((prevScore) => prevScore + lastScore);
+      setScore((prevScore) => {
+        const totalScore = prevScore + lastScore;
+        return isNaN(totalScore) ? prevScore : totalScore;
+      });
     }
   }, [lastScore, setScore]);
 
-  const moveGrid = (grid, moveFn) => {
-    const newGrid = moveFn(grid);
-    if (JSON.stringify(newGrid) !== JSON.stringify(grid)) {
-      return addNewCell(newGrid);
-    }
-    return grid;
-  };
-
-  const mergeLine = (line) => {
-    const filtered = line.filter((cell) => cell !== null);
-    let score = 0;
-    for (let i = 0; i < filtered.length - 1; i++) {
-      if (filtered[i] === filtered[i + 1]) {
-        filtered[i] *= 2;
-        score += filtered[i];
-        filtered[i + 1] = null;
-      }
-    }
-    return {
-      newLine: filtered.filter((cell) => cell !== null),
-      score,
-    };
-  };
-
   const moveLeft = useCallback(() => {
-    setGrid((grid) => {
-      let score = 0;
-      const newGrid = [];
+    setGrid((currentGrid) => {
+      const newGrid = moveGrid(currentGrid, (grid) => {
+        const rows = [];
+        let score = 0;
 
-      for (let i = 0; i < GRID_SIZE; i++) {
-        const row = grid.slice(i * GRID_SIZE, (i + 1) * GRID_SIZE);
-        const { newLine, score: rowScore } = mergeLine(row);
-        score += rowScore;
-        const filled = newLine.concat(
-          Array(GRID_SIZE - newLine.length).fill(null)
-        );
-        newGrid.push(...filled);
-      }
+        for (let i = 0; i < GRID_SIZE; i++) {
+          const row = grid.slice(i * GRID_SIZE, (i + 1) * GRID_SIZE);
+          const filtered = row.filter((cell) => cell !== null);
 
-      setLastScore(score);
-      const finalGrid = moveGrid(grid, () => newGrid);
-      checkGameOver(finalGrid);
-      return finalGrid;
+          for (let j = 0; j < filtered.length - 1; j++) {
+            if (filtered[j] === filtered[j + 1]) {
+              filtered[j] *= 2;
+              score += filtered[j];
+              filtered[j + 1] = null;
+            }
+          }
+
+          const newRow = filtered
+            .filter(Boolean)
+            .concat(
+              Array(GRID_SIZE - filtered.filter(Boolean).length).fill(null)
+            );
+          rows.push(...newRow);
+        }
+
+        setLastScore(score);
+        return rows;
+      });
+      checkGameOver(newGrid);
+      return newGrid;
     });
   }, []);
 
   const moveRight = useCallback(() => {
-    setGrid((grid) => {
-      let score = 0;
-      const newGrid = [];
+    setGrid((currentGrid) => {
+      const newGrid = moveGrid(currentGrid, (grid) => {
+        const rows = [];
+        let score = 0;
 
-      for (let i = 0; i < GRID_SIZE; i++) {
-        const row = grid.slice(i * GRID_SIZE, (i + 1) * GRID_SIZE).reverse();
-        const { newLine, score: rowScore } = mergeLine(row);
-        score += rowScore;
-        const filled = newLine
-          .concat(Array(GRID_SIZE - newLine.length).fill(null))
-          .reverse();
-        newGrid.push(...filled);
-      }
+        for (let i = 0; i < GRID_SIZE; i++) {
+          const row = grid.slice(i * GRID_SIZE, (i + 1) * GRID_SIZE).reverse();
+          const filtered = row.filter((cell) => cell !== null);
 
-      setLastScore(score);
-      const finalGrid = moveGrid(grid, () => newGrid);
-      checkGameOver(finalGrid);
-      return finalGrid;
+          for (let j = 0; j < filtered.length - 1; j++) {
+            if (filtered[j] === filtered[j + 1]) {
+              filtered[j] *= 2;
+              score += filtered[j];
+              filtered[j + 1] = null;
+            }
+          }
+
+          const newRow = filtered
+            .filter(Boolean)
+            .concat(
+              Array(GRID_SIZE - filtered.filter(Boolean).length).fill(null)
+            )
+            .reverse();
+          rows.push(...newRow);
+        }
+
+        setLastScore(score);
+        return rows;
+      });
+      checkGameOver(newGrid);
+      return newGrid;
     });
   }, []);
 
   const moveUp = useCallback(() => {
-    setGrid((grid) => {
-      let score = 0;
-      const cols = Array(GRID_SIZE)
-        .fill()
-        .map(() => []);
+    setGrid((currentGrid) => {
+      const newGrid = moveGrid(currentGrid, (grid) => {
+        const cols = [];
+        let score = 0;
 
-      for (let i = 0; i < GRID_SIZE; i++) {
-        for (let j = 0; j < GRID_SIZE; j++) {
-          cols[i].push(grid[j * GRID_SIZE + i]);
+        for (let i = 0; i < GRID_SIZE; i++) {
+          const col = [];
+          for (let j = 0; j < GRID_SIZE; j++) col.push(grid[j * GRID_SIZE + i]);
+
+          const filtered = col.filter(Boolean);
+
+          for (let j = 0; j < filtered.length - 1; j++) {
+            if (filtered[j] === filtered[j + 1]) {
+              filtered[j] *= 2;
+              score += filtered[j];
+              filtered[j + 1] = null;
+            }
+          }
+
+          const newCol = filtered
+            .filter(Boolean)
+            .concat(
+              Array(GRID_SIZE - filtered.filter(Boolean).length).fill(null)
+            );
+          cols.push(newCol);
         }
-      }
 
-      const newCols = cols.map((col) => {
-        const { newLine, score: colScore } = mergeLine(col);
-        score += colScore;
-        return newLine.concat(Array(GRID_SIZE - newLine.length).fill(null));
+        setLastScore(score);
+        return cols[0].map((_, i) => cols.map((col) => col[i])).flat();
       });
-
-      const newGrid = [].concat(
-        ...Array(GRID_SIZE)
-          .fill()
-          .map((_, rowIndex) => newCols.map((col) => col[rowIndex]))
-      );
-      setLastScore(score);
-      const finalGrid = moveGrid(grid, () => newGrid);
-      checkGameOver(finalGrid);
-      return finalGrid;
+      checkGameOver(newGrid);
+      return newGrid;
     });
   }, []);
 
   const moveDown = useCallback(() => {
-    setGrid((grid) => {
-      let score = 0;
-      const cols = Array(GRID_SIZE)
-        .fill()
-        .map(() => []);
+    setGrid((currentGrid) => {
+      const newGrid = moveGrid(currentGrid, (grid) => {
+        const cols = [];
+        let score = 0;
 
-      for (let i = 0; i < GRID_SIZE; i++) {
-        for (let j = GRID_SIZE - 1; j >= 0; j--) {
-          cols[i].push(grid[j * GRID_SIZE + i]);
+        for (let i = 0; i < GRID_SIZE; i++) {
+          const col = [];
+          for (let j = GRID_SIZE - 1; j >= 0; j--)
+            col.push(grid[j * GRID_SIZE + i]);
+
+          const filtered = col.filter(Boolean);
+
+          for (let j = 0; j < filtered.length - 1; j++) {
+            if (filtered[j] === filtered[j + 1]) {
+              filtered[j] *= 2;
+              score += filtered[j];
+              filtered[j + 1] = null;
+            }
+          }
+
+          const newCol = filtered
+            .filter(Boolean)
+            .concat(
+              Array(GRID_SIZE - filtered.filter(Boolean).length).fill(null)
+            )
+            .reverse();
+          cols.push(newCol);
         }
-      }
 
-      const newCols = cols.map((col) => {
-        const { newLine, score: colScore } = mergeLine(col);
-        score += colScore;
-        return newLine
-          .concat(Array(GRID_SIZE - newLine.length).fill(null))
-          .reverse();
+        setLastScore(score);
+        return cols[0].map((_, i) => cols.map((col) => col[i])).flat();
       });
-
-      const newGrid = [].concat(
-        ...Array(GRID_SIZE)
-          .fill()
-          .map((_, rowIndex) => newCols.map((col) => col[rowIndex]))
-      );
-      setLastScore(score);
-      const finalGrid = moveGrid(grid, () => newGrid);
-      checkGameOver(finalGrid);
-      return finalGrid;
+      checkGameOver(newGrid);
+      return newGrid;
     });
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!gameOver) {
-        switch (e.key) {
-          case "ArrowUp":
-            return moveUp();
-          case "ArrowDown":
-            return moveDown();
-          case "ArrowLeft":
-            return moveLeft();
-          case "ArrowRight":
-            return moveRight();
-          default:
-            return;
-        }
+      if (gameOver) return;
+      switch (e.key) {
+        case "ArrowUp":
+          moveUp();
+          break;
+        case "ArrowDown":
+          moveDown();
+          break;
+        case "ArrowLeft":
+          moveLeft();
+          break;
+        case "ArrowRight":
+          moveRight();
+          break;
+        default:
+          return;
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [gameOver, moveLeft, moveRight, moveUp, moveDown]);
-
-  const resetGame = () => {
-    setGrid(getInitialGrid());
-    setGameOver(false);
-    setLastScore(0);
-    setScore(0);
-  };
-
-  const checkGameOver = (grid) => {
-    if (grid.includes(null)) return;
-    for (let i = 0; i < GRID_SIZE; i++) {
-      for (let j = 0; j < GRID_SIZE; j++) {
-        const idx = i * GRID_SIZE + j;
-        const val = grid[idx];
-        if (
-          (j < GRID_SIZE - 1 && val === grid[idx + 1]) ||
-          (i < GRID_SIZE - 1 && val === grid[idx + GRID_SIZE])
-        )
-          return;
-      }
-    }
-    setGameOver(true);
-  };
+  }, [gameOver, moveUp, moveDown, moveLeft, moveRight]);
 
   function getInitialGrid() {
     const cells = Array(CELL_COUNT).fill(null);
@@ -198,14 +221,38 @@ const GameBoard = ({ setScore }) => {
   }
 
   function addNewCell(cells) {
-    const empty = cells
-      .map((cell, i) => ({ cell, i }))
-      .filter(({ cell }) => cell === null);
-    if (!empty.length) return cells;
+    const empty = cells.map((v, i) => ({ v, i })).filter(({ v }) => v === null);
+    if (empty.length === 0) return cells;
     const { i } = empty[Math.floor(Math.random() * empty.length)];
-    const newCells = [...cells];
-    newCells[i] = Math.random() < 0.9 ? 2 : 4;
-    return newCells;
+    const updated = [...cells];
+    updated[i] = Math.random() < 0.9 ? 2 : 4;
+    return updated;
+  }
+
+  function moveGrid(grid, fn) {
+    const newGrid = fn(grid);
+    if (JSON.stringify(newGrid) !== JSON.stringify(grid)) {
+      moveSound.play();
+      if (!gameWon && newGrid.includes(2048)) {
+        setGameWon(true);
+        winSound.play();
+      }
+      return addNewCell(newGrid);
+    }
+    return grid;
+  }
+
+  function checkGameOver(grid) {
+    if (grid.includes(null)) return;
+    for (let i = 0; i < GRID_SIZE; i++) {
+      for (let j = 0; j < GRID_SIZE; j++) {
+        const curr = grid[i * GRID_SIZE + j];
+        if (j < GRID_SIZE - 1 && curr === grid[i * GRID_SIZE + j + 1]) return;
+        if (i < GRID_SIZE - 1 && curr === grid[(i + 1) * GRID_SIZE + j]) return;
+      }
+    }
+    setGameOver(true);
+    loseSound.play();
   }
 
   const getCellColor = (value) => {
@@ -225,7 +272,7 @@ const GameBoard = ({ setScore }) => {
     return colors[value] || "#cdc1b4";
   };
 
-  const getCellTextColor = (value) => (value <= 4 ? "#776e65" : "#f9f6f2");
+  const getTextColor = (value) => (value <= 4 ? "#776e65" : "#f9f6f2");
 
   return (
     <Card className="bg-light border-0 shadow">
@@ -233,16 +280,19 @@ const GameBoard = ({ setScore }) => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
+            gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(60px, 1fr))`,
             gap: "15px",
             background: "#bbada0",
             padding: "15px",
             borderRadius: "6px",
+            width: "100%",
+            maxWidth: "500px",
+            margin: "0 auto",
           }}
         >
-          {grid.map((cell, i) => (
+          {grid.map((cell, index) => (
             <div
-              key={i}
+              key={index}
               style={{
                 aspectRatio: "1",
                 background: getCellColor(cell),
@@ -250,10 +300,11 @@ const GameBoard = ({ setScore }) => {
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: "3px",
-                fontSize: cell >= 1024 ? "1.25rem" : "2rem",
+                fontSize: cell > 100 ? "1.5rem" : "2rem",
                 fontWeight: "bold",
-                color: getCellTextColor(cell),
-                transition: "all 0.2s ease",
+                color: getTextColor(cell),
+                transition: "all 0.15s ease-in-out",
+                wordBreak: "break-word",
               }}
             >
               {cell || ""}
@@ -263,9 +314,11 @@ const GameBoard = ({ setScore }) => {
         {gameOver && (
           <div className="text-center mt-4">
             <h3 className="text-danger">Game Over!</h3>
-            <Button className="mt-2" onClick={resetGame}>
-              Restart
-            </Button>
+          </div>
+        )}
+        {gameWon && (
+          <div className="text-center mt-4">
+            <h3 className="text-success">You Win!</h3>
           </div>
         )}
       </Card.Body>
