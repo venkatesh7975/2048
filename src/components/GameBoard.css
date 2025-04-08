@@ -1,0 +1,24 @@
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  background: #bbada0;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.game-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-weight: bold;
+  transition: all 0.15s ease-in-out;
+}
+
+.game-over-text {
+  margin-top: 1rem;
+  text-align: center;
+  color: #d33;
+}
